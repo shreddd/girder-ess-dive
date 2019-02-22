@@ -1,0 +1,6 @@
+{
+    "name": "ESS DIVE assetstore plugin",
+    "description": "Allows access to ESS-DIVE files through a read-only assetstore.",
+    "dependencies": [],
+    "version": "0.1.0"
+}
