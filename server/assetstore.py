@@ -21,13 +21,21 @@ import cherrypy
 import os
 import requests
 from dateutil import parser
+import xmltodict
 
 from girder.models.model_base import ValidationException, GirderException
 from girder.utility.abstract_assetstore_adapter import AbstractAssetstoreAdapter
 from girder.api.rest import getCurrentUser
 from .constants import ESS_DIVE_URL, ESS_DIVE_QUERY_URL, ESS_DIVE_OBJECT_URL
 from .constants import BUF_LEN
+from .utils import from_bounds_to_geojson
 
+def get_essdive_metadata(base_url, ess_dive_id):
+    object_url = base_url + ESS_DIVE_OBJECT_URL 
+    url = "%s/%s" % (object_url, ess_dive_id)
+    resp = requests.get(url)
+    metadata = xmltodict.parse(resp.content)
+    return metadata
 
 def get_essdive_filelist(base_url, ess_dive_id):
     query_url = base_url + ESS_DIVE_QUERY_URL
@@ -86,6 +94,23 @@ class EssDiveAssetstoreAdapter(AbstractAssetstoreAdapter):
     def _import_essdive(self, parent, user, ess_dive_id, parent_type='folder'):
 
         file_objs = get_essdive_filelist(self.url, ess_dive_id)
+        metadata = get_essdive_metadata(self.url, ess_dive_id)
+
+        try:
+            bbox = metadata['eml:eml']['dataset']['coverage']['geographicCoverage']['boundingCoordinates']
+            # convert bbox girder format 
+            bounds = from_bounds_to_geojson(
+                {
+                    'left': float(bbox['westBoundingCoordinate']),
+                    'right': float(bbox['eastBoundingCoordinate']),
+                    'top': float(bbox['northBoundingCoordinate']),
+                    'bottom': float(bbox['southBoundingCoordinate'])
+                }, '+init=epsg:4326' # Since it is lat long use WGS84
+            )
+        except KeyError:
+            bounds = None
+
+
 
         for f in file_objs:
             name  = f['fileName']
@@ -93,6 +118,10 @@ class EssDiveAssetstoreAdapter(AbstractAssetstoreAdapter):
             mimeType = f['formatId']
             item = self.model('item').createItem(
                 name=name, creator=user, folder=parent, reuseExisting=True)
+            if bounds:
+                item['geometa'] = {'bounds': bounds}
+                self.model('item').save(item)
+
             file = self.model('file').createFile(
                 name=name, creator=user, item=item, reuseExisting=True,
                 assetstore=self.assetstore, mimeType=mimeType, size=size)
