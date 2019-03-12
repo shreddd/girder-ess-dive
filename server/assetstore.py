@@ -41,14 +41,14 @@ def get_essdive_filelist(base_url, ess_dive_id):
     query_url = base_url + ESS_DIVE_QUERY_URL
     # Get the resource map
     fields = "documents,id,resourceMap"
-    url = "%s?wt=json&fl=%s&q=id:%s&rows=10000" % (query_url, fields, ess_dive_id)
+    url = '%s?wt=json&fl=%s&q=id:"%s"&rows=10000' % (query_url, fields, ess_dive_id)
     resp = requests.get(url)
     json_resp = resp.json()
     resourceMap = json_resp['response']['docs'][0]['resourceMap'][0]
     
     # Get objects in the resource map
     file_fields = "fileName,size,formatType,formatId,id,datasource,rightsHolder,dateUploaded,title,origin"
-    files_url = "%s?wt=json&fl=%s&q=resourceMap:%s&rows=10000" % (query_url, file_fields, resourceMap)
+    files_url = '%s?wt=json&fl=%s&q=resourceMap:"%s"&rows=10000' % (query_url, file_fields, resourceMap)
     resp = requests.get(files_url)
     json_resp = resp.json()
 
