@@ -31,7 +31,7 @@ from .constants import BUF_LEN
 from .utils import from_bounds_to_geojson
 
 def get_essdive_metadata(base_url, ess_dive_id):
-    object_url = base_url + ESS_DIVE_OBJECT_URL 
+    object_url = base_url + ESS_DIVE_OBJECT_URL
     url = "%s/%s" % (object_url, ess_dive_id)
     resp = requests.get(url)
     metadata = xmltodict.parse(resp.content)
@@ -45,7 +45,7 @@ def get_essdive_filelist(base_url, ess_dive_id):
     resp = requests.get(url)
     json_resp = resp.json()
     resourceMap = json_resp['response']['docs'][0]['resourceMap'][0]
-    
+
     # Get objects in the resource map
     file_fields = "fileName,size,formatType,formatId,id,datasource,rightsHolder,dateUploaded,title,origin"
     files_url = '%s?wt=json&fl=%s&q=resourceMap:"%s"&rows=10000' % (query_url, file_fields, resourceMap)
@@ -53,7 +53,7 @@ def get_essdive_filelist(base_url, ess_dive_id):
     json_resp = resp.json()
 
     return json_resp['response']['docs']
-    
+
 class EssDiveAssetstoreAdapter(AbstractAssetstoreAdapter):
     def __init__(self, assetstore):
         self.assetstore = assetstore
@@ -84,9 +84,16 @@ class EssDiveAssetstoreAdapter(AbstractAssetstoreAdapter):
             raise cherrypy.HTTPRedirect(url)
         else:
             def stream():
-                r = requests.get(url, stream=True)
+                skip = offset
+                r = requests.get(url, stream=True, headers={'Range': 'bytes=%d-' % offset})
                 for chunk in r.iter_content(chunk_size=BUF_LEN):
                     if chunk:
+                        if skip and r.status_code != 206:
+                            if len(chunk) <= skip:
+                                skip -= len(chunk)
+                                continue
+                            chunk = chunk[skip:]
+                            skip = 0
                         yield chunk
             return stream
 
@@ -98,7 +105,7 @@ class EssDiveAssetstoreAdapter(AbstractAssetstoreAdapter):
 
         try:
             bbox = metadata['eml:eml']['dataset']['coverage']['geographicCoverage']['boundingCoordinates']
-            # convert bbox girder format 
+            # convert bbox girder format
             bounds = from_bounds_to_geojson(
                 {
                     'left': float(bbox['westBoundingCoordinate']),
